@@ -1,0 +1,103 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* v3 has no @theme, so the design tokens live on :root and the Tailwind
+   colour names are declared in tailwind.config.js instead. */
+:root {
+  --color-paper: #eef1f4;
+  --color-card:  #ffffff;
+  --color-wash:  #f6f8f9;
+  --color-ink:   #16263a;
+  --color-ink-2: #5a6b7d;
+  --color-rule:  #cbd5de;
+  --color-stamp: #b3311f;
+  --color-paid:  #1f6f52;
+}
+
+@layer base {
+  body { background: var(--color-paper); color: var(--color-ink); font-family: var(--font-sans); }
+
+  /* Every figure here is money, a date or a count, and all of them are read
+     down a column. Lining tabular digits throughout. */
+  table, input, .figure { font-variant-numeric: tabular-nums lining-nums; }
+
+  :focus-visible { outline: 2px solid var(--color-stamp); outline-offset: 2px; }
+
+  @media (prefers-reduced-motion: reduce) {
+    *, *::before, *::after { transition-duration: 0.01ms !important; animation-duration: 0.01ms !important; }
+  }
+}
+
+@layer components {
+  .panel { background: var(--color-card); border: 1px solid var(--color-rule); margin-bottom: 2rem; }
+  .panel > header { display: flex; align-items: center; justify-content: space-between;
+    gap: 1rem; padding: .85rem 1.1rem; border-bottom: 1px solid var(--color-rule);
+    background: var(--color-wash); }
+  .panel.is-late { border-left: 3px solid var(--color-stamp); }
+  .hint { font-size: .8125rem; color: var(--color-ink-2); font-weight: 400; }
+
+  .ledger { width: 100%; border-collapse: collapse; font-size: .9375rem; }
+  .ledger th { text-align: left; font-weight: 500; font-size: .75rem; color: var(--color-ink-2);
+    padding: .55rem 1.1rem; border-bottom: 1px solid var(--color-rule); white-space: nowrap; }
+  .ledger td { padding: .6rem 1.1rem; border-bottom: 1px solid var(--color-rule); }
+  .ledger tbody tr:last-child td { border-bottom: 0; }
+  .ledger tbody tr:hover { background: var(--color-wash); }
+  .ledger .num { text-align: right; }
+
+  /* One line, not four cards: the counts are context for the worklist
+     below, so they get a single rule-separated strip. */
+  .tally { display: flex; flex-wrap: wrap; align-items: baseline; gap: 0 1.5rem;
+    border-top: 2px solid var(--color-ink); border-bottom: 1px solid var(--color-rule);
+    padding: .85rem 0; margin-bottom: 2rem; }
+  .tally div { display: flex; align-items: baseline; gap: .4rem; }
+  .tally b { font-size: 1.375rem; font-weight: 600; }
+  .tally span { font-size: .8125rem; color: var(--color-ink-2); }
+
+  /* Days late is the one number that must be impossible to skim past. */
+  .late-days { color: var(--color-stamp); font-weight: 600; }
+
+  .mark { display: inline-block; font-size: .75rem; font-weight: 500; padding: .1rem .4rem;
+    border: 1px solid currentColor; white-space: nowrap; }
+  .mark-current { color: var(--color-paid); }
+  .mark-overdue, .mark-never_paid { color: var(--color-stamp); }
+  .mark-lapsed, .mark-cancelled { color: var(--color-ink-2); }
+
+  .btn { font-size: .875rem; font-weight: 500; padding: .5rem .85rem; cursor: pointer;
+    border: 1px solid var(--color-ink); background: var(--color-ink); color: var(--color-card); }
+  .btn:hover { background: #24405f; border-color: #24405f; }
+  .btn-quiet { background: transparent; color: var(--color-ink); border-color: var(--color-rule); }
+  .btn-quiet:hover { background: var(--color-wash); border-color: var(--color-ink); }
+  .btn-danger { background: transparent; color: var(--color-stamp); border-color: var(--color-stamp); }
+  .btn-danger:hover { background: var(--color-stamp); color: #fff; }
+  .btn-sm { padding: .3rem .55rem; font-size: .8125rem; }
+
+  .field { margin-bottom: .9rem; }
+  .field label { display: block; font-size: .8125rem; font-weight: 500; margin-bottom: .3rem; }
+  .field input, .field select, .field textarea { width: 100%; padding: .5rem .6rem;
+    background: var(--color-card); color: var(--color-ink); border: 1px solid var(--color-rule);
+    font-size: .9375rem; }
+  .field .note { font-size: .75rem; color: var(--color-ink-2); margin-top: .25rem; }
+  .field .error { font-size: .75rem; color: var(--color-stamp); margin-top: .25rem; }
+
+  .chip { font-size: .8125rem; font-weight: 500; padding: .4rem .7rem; background: transparent;
+    border: 1px solid var(--color-rule); color: var(--color-ink-2); }
+  .chip:hover { background: var(--color-wash); color: var(--color-ink); }
+  .chip[aria-pressed="true"] { background: var(--color-ink); border-color: var(--color-ink);
+    color: var(--color-card); }
+
+  .notice { padding: .7rem .9rem; border: 1px solid var(--color-rule); background: var(--color-wash);
+    font-size: .875rem; margin-bottom: 1.25rem; }
+  .notice-bad { border-color: var(--color-stamp); color: var(--color-stamp); background: transparent; }
+  .notice-good { border-color: var(--color-paid); color: var(--color-paid); background: transparent; }
+
+  .empty { padding: 2rem 1.1rem; text-align: center; color: var(--color-ink-2); }
+  .empty strong { display: block; color: var(--color-ink); font-weight: 600; margin-bottom: .25rem; }
+
+  .scrim { position: fixed; inset: 0; background: rgb(12 22 34 / .55); z-index: 50;
+    display: flex; align-items: flex-start; justify-content: center; padding: 3vh 1rem; overflow-y: auto; }
+  .sheet { background: var(--color-card); border: 1px solid var(--color-rule); width: 100%; max-width: 44rem; }
+  .sheet > header { display: flex; align-items: flex-start; justify-content: space-between;
+    gap: 1rem; padding: 1.1rem; border-bottom: 2px solid var(--color-ink); }
+  .sheet-narrow { max-width: 30rem; }
+}
