@@ -15,7 +15,8 @@ class Member extends Model
 {
     protected $fillable = [
         'company_name', 'business_type_id', 'email', 'phone',
-        'contact_person', 'contact_person_position',
+        'contact_person', 'contact_person_phone', 'contact_person_position',
+        'address', 'about',
         'member_type_id', 'status', 'monthly_fee', 'join_date',
         'marketing_opt_in', 'unsubscribed_at', 'notes',
         'logo_path', 'registration_document_path',
@@ -123,6 +124,13 @@ class Member extends Model
             return 'cancelled';
         }
 
+        // A self-registered member awaiting staff review isn't billable yet
+        // — it has no real join date to measure against, so it must be
+        // short-circuited before the paid_through/dayOffset logic below.
+        if ($this->status === 'pending') {
+            return 'pending';
+        }
+
         if ($this->paid_through === null) {
             return 'never_paid';
         }
@@ -140,6 +148,7 @@ class Member extends Model
             'overdue' => 'Overdue',
             'never_paid' => 'Never paid',
             'cancelled' => 'Cancelled',
+            'pending' => 'Pending review',
         ][$this->billingState()] ?? $this->billingState();
     }
 
@@ -173,15 +182,22 @@ class Member extends Model
         return $q->where('status', '!=', 'cancelled');
     }
 
+    /** Awaiting staff review after self-registering — not a real member yet. */
+    public function scopePending(Builder $q): Builder
+    {
+        return $q->where('status', 'pending');
+    }
+
     public function scopeCurrent(Builder $q): Builder
     {
-        return $q->notCancelled()->whereNotNull('paid_through')
+        return $q->notCancelled()->where('status', '!=', 'pending')
+            ->whereNotNull('paid_through')
             ->whereRaw('paid_through >= CURRENT_DATE');
     }
 
     public function scopeOverdue(Builder $q): Builder
     {
-        return $q->notCancelled()->where(function (Builder $q) {
+        return $q->notCancelled()->where('status', '!=', 'pending')->where(function (Builder $q) {
             $q->whereNull('paid_through')->orWhereRaw('paid_through < CURRENT_DATE');
         });
     }
@@ -221,7 +237,7 @@ class Member extends Model
             'current' => $q->current(),
             'overdue' => $q->overdue(),
             'lapsed' => $q->lapsed(),
-            default => $q->notCancelled(),
+            default => $q->notCancelled()->where('status', '!=', 'pending'),
         };
 
         return $q->where('marketing_opt_in', true)

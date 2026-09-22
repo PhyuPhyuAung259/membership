@@ -66,6 +66,14 @@ it('excludes cancelled members from both current and overdue', function () {
         ->and($cancelled->billingState())->toBe('cancelled');
 });
 
+it('excludes pending self-registrations from both current and overdue', function () {
+    $pending = memberWith(['status' => 'pending']);
+
+    expect(Member::current()->pluck('id'))->not->toContain($pending->id)
+        ->and(Member::overdue()->pluck('id'))->not->toContain($pending->id)
+        ->and($pending->billingState())->toBe('pending');
+});
+
 it('finds members whose coverage ends within the window', function () {
     $soon = memberWith(['paid_through' => now()->addDays(3)->toDateString()]);
     $later = memberWith(['paid_through' => now()->addDays(40)->toDateString()]);

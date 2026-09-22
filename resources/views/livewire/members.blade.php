@@ -1,7 +1,7 @@
 <div>
     <header class="mb-6 flex flex-wrap items-center justify-between gap-3">
         <h1 class="text-2xl font-semibold tracking-tight">Members</h1>
-        <button wire:click="startEdit" class="btn">Add member</button>
+        <a href="{{ route('members.create') }}" class="btn no-underline">Add member</a>
     </header>
 
     <div class="mb-4 flex flex-wrap items-center gap-2">
@@ -11,7 +11,7 @@
                    placeholder="Search company name, email or phone"
                    class="w-full border border-[var(--color-rule)] bg-white px-2.5 py-2 text-[.9375rem]">
         </div>
-        @foreach (['all' => 'Everyone', 'overdue' => 'Overdue', 'due_soon' => 'Due soon', 'current' => 'Paid up', 'lapsed' => 'Lapsed', 'cancelled' => 'Cancelled'] as $key => $label)
+        @foreach (['all' => 'Everyone', 'pending' => 'Pending review', 'overdue' => 'Overdue', 'due_soon' => 'Due soon', 'current' => 'Paid up', 'lapsed' => 'Lapsed', 'cancelled' => 'Cancelled'] as $key => $label)
             <button wire:click="setFilter('{{ $key }}')" class="chip" aria-pressed="{{ $filter === $key ? 'true' : 'false' }}">{{ $label }}</button>
         @endforeach
     </div>
@@ -45,7 +45,11 @@
                             <td>{{ $member->paid_through?->format('j M Y') ?? '—' }}</td>
                             <td class="num">{{ config('membership.currency_symbol') }}{{ number_format($member->effectiveMonthlyFee(), 2) }}</td>
                             <td class="whitespace-nowrap">
-                                <button wire:click="startPayment({{ $member->id }})" class="btn btn-quiet btn-sm">Record payment</button>
+                                @if ($member->status === 'pending')
+                                    <button wire:click="activate({{ $member->id }})" class="btn btn-quiet btn-sm">Activate</button>
+                                @else
+                                    <button wire:click="startPayment({{ $member->id }})" class="btn btn-quiet btn-sm">Record payment</button>
+                                @endif
                             </td>
                         </tr>
                     @empty
@@ -133,7 +137,7 @@
         <div class="scrim" wire:click.self="closeAll">
             <div class="sheet sheet-narrow" role="dialog" aria-modal="true">
                 <header>
-                    <h2 class="text-[1.0625rem] font-semibold">{{ $editingId ? 'Edit member' : 'Add member' }}</h2>
+                    <h2 class="text-[1.0625rem] font-semibold">Edit member</h2>
                     <button wire:click="closeAll" class="btn btn-quiet btn-sm">Close</button>
                 </header>
                 <form wire:submit="saveMember" class="p-[1.1rem]">
@@ -181,10 +185,15 @@
                             @error('form.contact_person') <div class="error">{{ $message }}</div> @enderror
                         </div>
                         <div class="field">
-                            <label for="f-contact-position">Contact person's position</label>
-                            <input id="f-contact-position" wire:model="form.contact_person_position">
-                            @error('form.contact_person_position') <div class="error">{{ $message }}</div> @enderror
+                            <label for="f-contact-phone">Contact person's phone No.</label>
+                            <input id="f-contact-phone" wire:model="form.contact_person_phone">
+                            @error('form.contact_person_phone') <div class="error">{{ $message }}</div> @enderror
                         </div>
+                    </div>
+                    <div class="field">
+                        <label for="f-contact-position">Contact person's position</label>
+                        <input id="f-contact-position" wire:model="form.contact_person_position">
+                        @error('form.contact_person_position') <div class="error">{{ $message }}</div> @enderror
                     </div>
                     <div class="grid gap-x-4 sm:grid-cols-2">
                         <div class="field">
@@ -202,6 +211,20 @@
                         </div>
                     </div>
                     <div class="field">
+                        <label for="f-address">Address</label>
+                        <textarea id="f-address" rows="2" wire:model="form.address"></textarea>
+                        @error('form.address') <div class="error">{{ $message }}</div> @enderror
+                    </div>
+                    <div class="field">
+                        @php $aboutWords = str_word_count(strip_tags($form['about'] ?? '')); @endphp
+                        <label for="f-about">About the company</label>
+                        <textarea id="f-about" rows="6" wire:model.live.debounce.400ms="form.about"></textarea>
+                        <div class="note @if (($form['about'] ?? '') !== '' && ($aboutWords < 100 || $aboutWords > 200)) text-[var(--color-stamp)] @endif">
+                            {{ $aboutWords }} words — between 100 and 200, if filled in.
+                        </div>
+                        @error('form.about') <div class="error">{{ $message }}</div> @enderror
+                    </div>
+                    <div class="field">
                         <label for="f-notes">Notes</label>
                         <textarea id="f-notes" rows="3" wire:model="form.notes"></textarea>
                     </div>
@@ -212,7 +235,7 @@
                         </label>
                     </div>
                     <div class="flex flex-wrap gap-2">
-                        <button type="submit" class="btn">{{ $editingId ? 'Save changes' : 'Add member' }}</button>
+                        <button type="submit" class="btn">Save changes</button>
                         <button type="button" wire:click="closeAll" class="btn btn-quiet">Cancel</button>
                     </div>
                 </form>
@@ -235,6 +258,11 @@
                 </header>
 
                 <div class="p-[1.1rem]">
+                    @if ($detail->logo_path)
+                        <img src="{{ \Illuminate\Support\Facades\Storage::disk('public')->url($detail->logo_path) }}"
+                             alt="{{ $detail->company_name }} logo"
+                             class="mb-4 h-16 w-16 border border-[var(--color-rule)] bg-white object-contain p-1">
+                    @endif
                     <dl class="mb-6 grid grid-cols-[auto_1fr] gap-x-4 gap-y-1.5 text-sm">
                         <dt class="text-[var(--color-ink-2)]">Standing</dt>
                         <dd class="font-medium">
@@ -243,19 +271,50 @@
                                 <span class="late-days">{{ $detail->daysOverdue() }} days late</span>
                             @endif
                         </dd>
-                        <dt class="text-[var(--color-ink-2)]">Paid through</dt>
-                        <dd class="font-medium">{{ $detail->paid_through?->format('j M Y') ?? '—' }}</dd>
-                        <dt class="text-[var(--color-ink-2)]">Next due</dt>
-                        <dd class="font-medium">{{ \Carbon\Carbon::parse($detail->dueOn())->format('j M Y') }}</dd>
+                        @if ($detail->status !== 'pending')
+                            <dt class="text-[var(--color-ink-2)]">Paid through</dt>
+                            <dd class="font-medium">{{ $detail->paid_through?->format('j M Y') ?? '—' }}</dd>
+                            <dt class="text-[var(--color-ink-2)]">Next due</dt>
+                            <dd class="font-medium">{{ \Carbon\Carbon::parse($detail->dueOn())->format('j M Y') }}</dd>
+                        @endif
+                        <dt class="text-[var(--color-ink-2)]">Business type</dt>
+                        <dd class="font-medium">{{ $detail->businessType?->name ?? '—' }}</dd>
                         <dt class="text-[var(--color-ink-2)]">Member type</dt>
                         <dd class="font-medium">{{ $detail->memberType?->name ?? '—' }}</dd>
                         <dt class="text-[var(--color-ink-2)]">Monthly fee</dt>
                         <dd class="font-medium">{{ config('membership.currency_symbol') }}{{ number_format($detail->effectiveMonthlyFee(), 2) }}</dd>
                         <dt class="text-[var(--color-ink-2)]">Joined</dt>
                         <dd class="font-medium">{{ $detail->join_date->format('j M Y') }}</dd>
+                        @if ($detail->contact_person)
+                            <dt class="text-[var(--color-ink-2)]">Contact</dt>
+                            <dd class="font-medium">
+                                {{ $detail->contact_person }}
+                                @if ($detail->contact_person_phone) · {{ $detail->contact_person_phone }} @endif
+                                @if ($detail->contact_person_position) · {{ $detail->contact_person_position }} @endif
+                            </dd>
+                        @endif
+                        @if ($detail->address)
+                            <dt class="text-[var(--color-ink-2)]">Address</dt>
+                            <dd class="font-medium whitespace-pre-line">{{ $detail->address }}</dd>
+                        @endif
+                        <dt class="text-[var(--color-ink-2)]">Registration document</dt>
+                        <dd class="font-medium">
+                            @if ($detail->registration_document_path)
+                                <a href="{{ route('members.registration', $detail) }}" target="_blank" rel="noopener">View document</a>
+                            @else
+                                —
+                            @endif
+                        </dd>
                         <dt class="text-[var(--color-ink-2)]">Announcements</dt>
                         <dd class="font-medium">{{ $detail->unsubscribed_at ? 'Unsubscribed' : ($detail->marketing_opt_in ? 'Subscribed' : 'Opted out') }}</dd>
                     </dl>
+
+                    @if ($detail->about)
+                        <section class="panel !mb-6">
+                            <header><h3 class="text-[.9375rem] font-semibold">About</h3></header>
+                            <div class="p-[1.1rem] text-sm whitespace-pre-line">{{ $detail->about }}</div>
+                        </section>
+                    @endif
 
                     <section class="panel !mb-6">
                         <header><h3 class="text-[.9375rem] font-semibold">Payments</h3>
@@ -317,14 +376,18 @@
                 </div>
 
                 <div class="flex flex-wrap gap-2 border-t border-[var(--color-rule)] bg-[var(--color-wash)] p-[1.1rem]">
-                    <button wire:click="startPayment({{ $detail->id }})" class="btn">Record payment</button>
+                    @if ($detail->status === 'pending')
+                        <button wire:click="activate({{ $detail->id }})" class="btn">Activate member</button>
+                    @else
+                        <button wire:click="startPayment({{ $detail->id }})" class="btn">Record payment</button>
+                    @endif
                     <button wire:click="startEdit({{ $detail->id }})" class="btn btn-quiet">Edit details</button>
-                    @if ($detail->status !== 'cancelled')
+                    @if (! in_array($detail->status, ['cancelled', 'pending'], true))
                         <a href="{{ route('directory.show', $detail) }}" target="_blank" rel="noopener" class="btn btn-quiet">View public profile</a>
                     @endif
                     @if ($detail->status === 'cancelled')
                         <button wire:click="reinstate({{ $detail->id }})" class="btn btn-quiet">Reinstate</button>
-                    @else
+                    @elseif ($detail->status !== 'pending')
                         <button wire:click="cancelMembership({{ $detail->id }})"
                                 wire:confirm="Cancel this membership? Payment history is kept and it can be reinstated later."
                                 class="btn btn-danger">Cancel membership</button>

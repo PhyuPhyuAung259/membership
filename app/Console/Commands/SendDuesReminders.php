@@ -24,7 +24,7 @@ class SendDuesReminders extends Command
         $stages = [];
 
         Member::query()
-            ->where('status', '!=', 'cancelled')
+            ->whereNotIn('status', ['cancelled', 'pending'])
             ->orderBy('id')
             ->chunkById(500, function ($members) use ($schedule, $dryRun, &$counts, &$stages) {
                 foreach ($members as $member) {

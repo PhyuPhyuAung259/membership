@@ -6,6 +6,7 @@ use App\Models\BusinessType;
 use App\Models\Member;
 use App\Models\MemberType;
 use App\Models\Payment;
+use App\Rules\WordCountBetween;
 use App\Services\PaymentRecorder;
 use Livewire\Attributes\Url;
 use Livewire\Attributes\Layout;
@@ -59,6 +60,7 @@ class Members extends Component
             'current' => $query->current(),
             'lapsed' => $query->lapsed(),
             'cancelled' => $query->where('status', 'cancelled'),
+            'pending' => $query->pending(),
             default => $query,
         };
 
@@ -94,6 +96,12 @@ class Members extends Component
     public function startPayment(int $id, PaymentRecorder $recorder): void
     {
         $member = Member::findOrFail($id);
+
+        // A self-registration hasn't been reviewed yet — staff must activate
+        // it before it's a billable member. Guards the button being hidden
+        // in the UI, not just decoration.
+        abort_if($member->status === 'pending', 403, 'Activate this member before recording a payment.');
+
         $this->payingId = $id;
         $this->months = 1;
         $this->paidOn = now()->toDateString();
@@ -172,41 +180,46 @@ class Members extends Component
         return MemberType::ranked()->get();
     }
 
-    public function startEdit(?int $id = null): void
+    // Adding a new member lives on its own page (App\Livewire\MemberCreate);
+    // this modal only ever edits an existing one.
+    public function startEdit(int $id): void
     {
         $this->editingId = $id;
-
-        $member = $id ? Member::findOrFail($id) : null;
+        $member = Member::findOrFail($id);
 
         $this->form = [
-            'company_name' => $member->company_name ?? '',
+            'company_name' => $member->company_name,
             'business_type_id' => $member->business_type_id ?? '',
-            'email' => $member->email ?? '',
+            'email' => $member->email,
             'phone' => $member->phone ?? '',
             'contact_person' => $member->contact_person ?? '',
+            'contact_person_phone' => $member->contact_person_phone ?? '',
             'contact_person_position' => $member->contact_person_position ?? '',
             'member_type_id' => $member->member_type_id ?? '',
-            'monthly_fee' => $member && $member->monthly_fee !== null ? (string) $member->monthly_fee : '',
-            'join_date' => $member?->join_date->format('Y-m-d') ?? now()->toDateString(),
+            'monthly_fee' => $member->monthly_fee !== null ? (string) $member->monthly_fee : '',
+            'join_date' => $member->join_date->format('Y-m-d'),
+            'address' => $member->address ?? '',
+            'about' => $member->about ?? '',
             'notes' => $member->notes ?? '',
-            'marketing_opt_in' => $member ? ($member->marketing_opt_in && ! $member->unsubscribed_at) : true,
+            'marketing_opt_in' => $member->marketing_opt_in && ! $member->unsubscribed_at,
         ];
     }
 
     public function saveMember(): void
     {
-        $unique = 'unique:members,email' . ($this->editingId ? ",{$this->editingId}" : '');
-
         $data = $this->validate([
             'form.company_name' => 'required|string|max:200',
             'form.business_type_id' => 'nullable|exists:business_types,id',
-            'form.email' => "required|email|max:254|{$unique}",
+            'form.email' => "required|email|max:254|unique:members,email,{$this->editingId}",
             'form.phone' => 'nullable|string|max:40',
             'form.contact_person' => 'nullable|string|max:200',
+            'form.contact_person_phone' => 'nullable|string|max:40',
             'form.contact_person_position' => 'nullable|string|max:120',
             'form.member_type_id' => 'nullable|exists:member_types,id',
             'form.monthly_fee' => 'nullable|numeric|min:0',
             'form.join_date' => 'required|date',
+            'form.address' => 'nullable|string|max:500',
+            'form.about' => ['nullable', 'string', new WordCountBetween(100, 200)],
             'form.notes' => 'nullable|string|max:4000',
             'form.marketing_opt_in' => 'boolean',
         ])['form'];
@@ -214,6 +227,8 @@ class Members extends Component
         $data['email'] = mb_strtolower($data['email']);
         $data['business_type_id'] = $data['business_type_id'] ?: null;
         $data['member_type_id'] = $data['member_type_id'] ?: null;
+        $data['address'] = $data['address'] ?: null;
+        $data['about'] = $data['about'] ?: null;
 
         // Blank means "use the tier's fee" — an override of 0 is a deliberate
         // free membership and must not be confused with "no override set".
@@ -224,7 +239,7 @@ class Members extends Component
         // Re-subscribing must clear the timestamp, or the consent check keeps
         // blocking announcements even though the box is ticked.
         $optIn = (bool) ($data['marketing_opt_in'] ?? true);
-        $member = $this->editingId ? Member::findOrFail($this->editingId) : new Member();
+        $member = Member::findOrFail($this->editingId);
 
         $member->fill($data);
         $member->marketing_opt_in = $optIn;
@@ -249,6 +264,13 @@ class Members extends Component
             'status' => ($member->paid_through && $member->dayOffset() <= 0) ? 'active' : 'lapsed',
         ]);
         session()->flash('status', 'Membership reinstated.');
+    }
+
+    /** Staff has reviewed a self-registration and it's a real member now. */
+    public function activate(int $id): void
+    {
+        Member::findOrFail($id)->update(['status' => 'active']);
+        session()->flash('status', 'Member activated.');
     }
 
     public function render()

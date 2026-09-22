@@ -62,6 +62,7 @@
   .mark-current { color: var(--color-paid); }
   .mark-overdue, .mark-never_paid { color: var(--color-stamp); }
   .mark-lapsed, .mark-cancelled { color: var(--color-ink-2); }
+  .mark-pending { color: var(--color-ink-2); font-style: italic; }
 
   .btn { font-size: .875rem; font-weight: 500; padding: .5rem .85rem; cursor: pointer;
     border: 1px solid var(--color-ink); background: var(--color-ink); color: var(--color-card); }

@@ -51,8 +51,19 @@
                 <dt class="text-[var(--color-ink-2)]">Phone</dt>
                 <dd class="font-medium">{{ $member->phone }}</dd>
             @endif
+            @if ($member->address)
+                <dt class="text-[var(--color-ink-2)]">Address</dt>
+                <dd class="font-medium whitespace-pre-line">{{ $member->address }}</dd>
+            @endif
         </dl>
     </section>
+
+    @if ($member->about)
+        <section class="panel">
+            <header><h2 class="text-[1.0625rem] font-semibold">About</h2></header>
+            <div class="p-[1.1rem] text-sm whitespace-pre-line">{{ $member->about }}</div>
+        </section>
+    @endif
 
     <section class="panel !mb-0">
         <header>

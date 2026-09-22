@@ -21,8 +21,10 @@
 
         @php
             $links = [
-                'dashboard' => 'Today',
+                'dashboard' => 'Dashboard',
                 'members' => 'Members',
+                'member-types' => 'Member types',
+                'business-types' => 'Business types',
                 'events' => 'Events',
                 'announcements' => 'Email',
             ];

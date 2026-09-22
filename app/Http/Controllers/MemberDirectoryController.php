@@ -18,9 +18,10 @@ class MemberDirectoryController extends Controller
 {
     public function show(Member $member): View
     {
-        // A cancelled membership does not get a public page. Its URL still
-        // 404s rather than quietly showing stale company info.
-        abort_if($member->status === 'cancelled', 404);
+        // A cancelled membership does not get a public page, and neither does
+        // one still waiting on staff review — its URL 404s rather than
+        // showing an unvetted self-registration to the public.
+        abort_if(in_array($member->status, ['cancelled', 'pending'], true), 404);
 
         $member->load(['businessType', 'products']);
 

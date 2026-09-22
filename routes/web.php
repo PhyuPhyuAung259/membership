@@ -1,12 +1,16 @@
 <?php
 
 use App\Http\Controllers\MemberDirectoryController;
+use App\Http\Controllers\MemberDocumentController;
 use App\Http\Controllers\UnsubscribeController;
 use App\Livewire\Actions\Logout;
 use App\Livewire\Announcements;
+use App\Livewire\BusinessTypes;
 use App\Livewire\Dashboard;
 use App\Livewire\Events;
+use App\Livewire\MemberCreate;
 use App\Livewire\Members;
+use App\Livewire\MemberTypes;
 use Illuminate\Support\Facades\Route;
 
 /*
@@ -33,14 +37,24 @@ Route::get('/directory/{member}', [MemberDirectoryController::class, 'show'])
     ->name('directory.show');
 
 /*
-| Everything else is staff-only. There is no public sign-up: this tool has a
-| small, known set of operators and a registration form would only ever be a
-| liability. Create admins with `php artisan make:filament-user` style
-| seeding or the tinker snippet in the README.
+| Public self-registration. Unauthenticated on purpose — this is the link
+| shared with a prospective member so they can join without staff typing
+| their details in. MemberCreate itself decides what happens on submit: a
+| signed-in staff member creates an active member; a public visitor lands
+| as 'pending' for staff to review on the Members page.
+*/
+Route::get('/members/create', MemberCreate::class)->name('members.create');
+
+/*
+| Everything else is staff-only.
 */
 Route::middleware(['auth'])->group(function () {
     Route::get('/', Dashboard::class)->name('dashboard');
     Route::get('/members', Members::class)->name('members');
+    Route::get('/members/{member}/registration', [MemberDocumentController::class, 'registration'])
+        ->name('members.registration');
+    Route::get('/business-types', BusinessTypes::class)->name('business-types');
+    Route::get('/member-types', MemberTypes::class)->name('member-types');
     Route::get('/events', Events::class)->name('events');
     Route::get('/announcements', Announcements::class)->name('announcements');
 
