@@ -43,11 +43,11 @@
     </section>
 
     @if ($form !== [])
-        <div class="scrim" wire:click.self="$set('form', [])">
+        <div class="scrim" wire:click.self="closeForm">
             <div class="sheet sheet-narrow" role="dialog" aria-modal="true">
                 <header>
                     <h2 class="text-[1.0625rem] font-semibold">{{ $editingId ? 'Edit event' : 'Add event' }}</h2>
-                    <button wire:click="$set('form', [])" class="btn btn-quiet btn-sm">Close</button>
+                    <button wire:click="closeForm" class="btn btn-quiet btn-sm">Close</button>
                 </header>
                 <form wire:submit="save" class="p-[1.1rem]">
                     <div class="field">
@@ -74,6 +74,22 @@
                         <textarea id="e-body" rows="6" wire:model="form.body" placeholder="What members need to know."></textarea>
                         <div class="note">Leave a blank line between paragraphs.</div>
                     </div>
+                    <div class="field">
+                        <label for="e-image">Banner image</label>
+                        <input id="e-image" type="file" wire:model="image" accept="image/*">
+                        <div class="note">JPG, PNG, WebP or GIF, up to 2&nbsp;MB. Shown as the banner in the announcement email.</div>
+                        @error('image') <div class="error">{{ $message }}</div> @enderror
+                        <div wire:loading wire:target="image" class="note">Uploading…</div>
+                        @if ($image)
+                            <img src="{{ $image->temporaryUrl() }}" alt="Banner preview"
+                                 class="mt-2 max-h-40 w-full rounded border border-[var(--color-rule)] object-cover">
+                            <button type="button" wire:click="removeImage" class="btn btn-quiet btn-sm mt-1">Remove</button>
+                        @elseif ($existingImagePath)
+                            <img src="{{ \Illuminate\Support\Facades\Storage::disk('public')->url($existingImagePath) }}" alt="Banner preview"
+                                 class="mt-2 max-h-40 w-full rounded border border-[var(--color-rule)] object-cover">
+                            <button type="button" wire:click="removeImage" class="btn btn-quiet btn-sm mt-1">Remove image</button>
+                        @endif
+                    </div>
                     <div class="flex flex-wrap gap-2">
                         <button type="submit" class="btn">{{ $editingId ? 'Save changes' : 'Add event' }}</button>
                         @if ($editingId)
@@ -81,7 +97,7 @@
                                     wire:confirm="Delete this event? Announcements already sent are kept."
                                     class="btn btn-danger">Delete</button>
                         @endif
-                        <button type="button" wire:click="$set('form', [])" class="btn btn-quiet">Cancel</button>
+                        <button type="button" wire:click="closeForm" class="btn btn-quiet">Cancel</button>
                     </div>
                 </form>
             </div>

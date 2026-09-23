@@ -1,4 +1,8 @@
 <x-mail::message>
+@if ($eventImageUrl)
+<img src="{{ $eventImageUrl }}" alt="{{ $event->title }}" style="width:100%;max-width:600px;height:auto;border-radius:4px;">
+
+@endif
 # {{ $heading }}
 
 @if ($event && ($eventWhen || $event->location))

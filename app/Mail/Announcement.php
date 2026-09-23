@@ -42,6 +42,7 @@ class Announcement extends Mailable
                 'heading' => $this->broadcast->subject,
                 'bodyText' => $this->broadcast->body,
                 'event' => $event,
+                'eventImageUrl' => $event?->imageUrl(),
                 'eventWhen' => $event
                     ? trim(collect([
                         $event->event_date?->format('j F Y'),
