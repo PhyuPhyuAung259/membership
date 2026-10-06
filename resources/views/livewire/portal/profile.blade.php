@@ -3,11 +3,79 @@
     <header class="mb-6">
         <h1 class="text-2xl font-semibold tracking-tight">Profile</h1>
         <p class="mt-1 text-[.8125rem] text-[var(--color-ink-2)]">
-            This is what appears on your public directory page. To change your login email or membership tier, contact {{ config('membership.org_name') }} staff.
+            Everything on file for your membership. The fields below the overview appear on your public directory page and are yours to edit; your login email, tier, fee and status are set by {{ config('membership.org_name') }} staff.
         </p>
     </header>
 
+    <section class="panel">
+        <header><h2 class="text-[1.0625rem] font-semibold">Account overview</h2></header>
+        <dl class="grid grid-cols-[auto_1fr] gap-x-4 gap-y-1.5 p-[1.1rem] text-sm">
+            <dt class="text-[var(--color-ink-2)]">Company name</dt>
+            <dd class="font-medium">{{ $member->company_name }}</dd>
+            <dt class="text-[var(--color-ink-2)]">Login email</dt>
+            <dd class="font-medium">{{ $member->email }}</dd>
+            @if ($member->phone)
+                <dt class="text-[var(--color-ink-2)]">Phone</dt>
+                <dd class="font-medium">{{ $member->phone }}</dd>
+            @endif
+            <dt class="text-[var(--color-ink-2)]">Business type</dt>
+            <dd class="font-medium">{{ $member->businessType?->name ?? '—' }}</dd>
+            <dt class="text-[var(--color-ink-2)]">Member type</dt>
+            <dd class="font-medium">{{ $member->memberType?->name ?? '—' }}</dd>
+            <dt class="text-[var(--color-ink-2)]">Monthly fee</dt>
+            <dd class="font-medium">{{ config('membership.currency_symbol') }}{{ number_format($member->effectiveMonthlyFee(), 2) }}</dd>
+            <dt class="text-[var(--color-ink-2)]">Standing</dt>
+            <dd class="font-medium">
+                <span class="mark mark-{{ $member->billingState() }}">{{ $member->billingLabel() }}</span>
+                @if ($member->billingState() === 'overdue')
+                    <span class="late-days">{{ $member->daysOverdue() }} days late</span>
+                @endif
+            </dd>
+            <dt class="text-[var(--color-ink-2)]">Paid through</dt>
+            <dd class="font-medium">{{ $member->paid_through?->format('j M Y') ?? '—' }}</dd>
+            @if ($member->status !== 'cancelled')
+                <dt class="text-[var(--color-ink-2)]">Next due</dt>
+                <dd class="font-medium">{{ \Carbon\Carbon::parse($member->dueOn())->format('j M Y') }}</dd>
+            @endif
+            <dt class="text-[var(--color-ink-2)]">Joined</dt>
+            <dd class="font-medium">{{ $member->join_date->format('j M Y') }}</dd>
+            @if ($member->contact_person)
+                <dt class="text-[var(--color-ink-2)]">Contact</dt>
+                <dd class="font-medium">
+                    {{ $member->contact_person }}
+                    @if ($member->contact_person_phone) · {{ $member->contact_person_phone }} @endif
+                    @if ($member->contact_person_position) · {{ $member->contact_person_position }} @endif
+                </dd>
+            @endif
+            @if ($member->address)
+                <dt class="text-[var(--color-ink-2)]">Address</dt>
+                <dd class="font-medium whitespace-pre-line">{{ $member->address }}</dd>
+            @endif
+            <dt class="text-[var(--color-ink-2)]">Registration document</dt>
+            <dd class="font-medium">
+                @if ($member->registration_document_path)
+                    <a href="{{ route('portal.documents.registration') }}" target="_blank" rel="noopener">View document</a>
+                    <span class="text-[var(--color-ink-2)]">— uploaded {{ $member->registration_document_updated_at?->format('j M Y') ?? 'a while ago' }}</span>
+                @else
+                    — <a href="{{ route('portal.documents') }}">Upload one</a>
+                @endif
+            </dd>
+            <dt class="text-[var(--color-ink-2)]">Announcements</dt>
+            <dd class="font-medium">{{ $member->unsubscribed_at ? 'Unsubscribed' : ($member->marketing_opt_in ? 'Subscribed' : 'Opted out') }}</dd>
+            <dt class="text-[var(--color-ink-2)]">Products listed</dt>
+            <dd class="font-medium">{{ $member->products->count() }} — <a href="{{ route('portal.products') }}">Manage</a></dd>
+        </dl>
+
+        @if ($member->about)
+            <div class="border-t border-[var(--color-rule)] p-[1.1rem]">
+                <div class="mb-1 text-[.8125rem] font-medium text-[var(--color-ink-2)]">About</div>
+                <div class="text-sm whitespace-pre-line">{{ $member->about }}</div>
+            </div>
+        @endif
+    </section>
+
     <section class="panel !mb-0">
+        <header><h2 class="text-[1.0625rem] font-semibold">Edit profile</h2></header>
         <form wire:submit="save" class="p-[1.1rem]">
             <div class="field">
                 @if ($member->logo_path)

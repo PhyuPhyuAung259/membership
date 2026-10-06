@@ -2,6 +2,7 @@
 
 use App\Livewire\Portal\Profile;
 use App\Models\Member;
+use App\Models\MemberType;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Livewire\Livewire;
 
@@ -56,4 +57,21 @@ it('does not expose a way to change the login email, status or member type', fun
 
     expect($member->fresh()->email)->toBe($member->email)
         ->and($member->fresh()->status)->toBe('active');
+});
+
+it('shows a full read-only overview including staff-controlled fields', function () {
+    $tier = MemberType::create(['name' => 'Gold', 'monthly_fee' => 99]);
+    $member = portalProfileMember([
+        'member_type_id' => $tier->id,
+        'contact_person' => 'Jane Doe',
+    ]);
+    $member->setPortalPassword('secret-pass');
+    $this->actingAs($member, 'member');
+
+    Livewire::test(Profile::class)
+        ->assertSee($member->email)
+        ->assertSee('Gold')
+        ->assertSee('99.00')
+        ->assertSee($member->billingLabel())
+        ->assertSee('Jane Doe');
 });
