@@ -75,9 +75,15 @@
 
   .field { margin-bottom: .9rem; }
   .field label { display: block; font-size: .8125rem; font-weight: 500; margin-bottom: .3rem; }
-  .field input, .field select, .field textarea { width: 100%; padding: .5rem .6rem;
+  .field input:not([type="checkbox"]), .field select, .field textarea { width: 100%; padding: .5rem .6rem;
     background: var(--color-card); color: var(--color-ink); border: 1px solid var(--color-rule);
     font-size: .9375rem; }
+  /* Excluded above rather than overridden: that rule's flat `background`
+     hid Tailwind's checked-state background-color/checkmark image, so a
+     checkbox could be logically checked while rendering empty. Leaving
+     checkboxes out entirely lets Tailwind Forms' own checked/unchecked
+     styling render untouched. */
+  .field input[type="checkbox"] { width: 1rem; height: 1rem; flex: none; }
   .field .note { font-size: .75rem; color: var(--color-ink-2); margin-top: .25rem; }
   .field .error { font-size: .75rem; color: var(--color-stamp); margin-top: .25rem; }
 

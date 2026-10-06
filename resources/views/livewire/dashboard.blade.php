@@ -1,4 +1,5 @@
 <div>
+    @include('partials.flash')
     <header class="mb-6">
         <div class="mb-1 text-[.8125rem] text-[var(--color-ink-2)]">{{ now()->format('j F Y') }}</div>
         <div class="flex flex-wrap items-center justify-between gap-3">

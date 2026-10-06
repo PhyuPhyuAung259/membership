@@ -1,4 +1,5 @@
 <div>
+    @include('partials.flash')
     <header class="mb-6">
         <h1 class="text-2xl font-semibold tracking-tight">Email</h1>
     </header>

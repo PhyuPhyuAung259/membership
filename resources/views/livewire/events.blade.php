@@ -1,4 +1,5 @@
 <div>
+    @include('partials.flash')
     <header class="mb-6 flex flex-wrap items-center justify-between gap-3">
         <h1 class="text-2xl font-semibold tracking-tight">Events and activities</h1>
         <button wire:click="startEdit" class="btn">Add event</button>
