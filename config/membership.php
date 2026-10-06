@@ -46,4 +46,9 @@ return [
     // valid this long. Long enough that a member reading an old email still
     // gets a working link.
     'unsubscribe_link_days' => (int) env('UNSUBSCRIBE_LINK_DAYS', 365),
+
+    // A registration document older than this (or missing entirely) gets a
+    // nudge from the monthly document-reminder schedule. One document, once
+    // a year at most per company, is a yearly-renewal cadence, not nagging.
+    'document_reminder_stale_days' => (int) env('DOCUMENT_REMINDER_STALE_DAYS', 365),
 ];

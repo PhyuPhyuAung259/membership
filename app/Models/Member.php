@@ -2,7 +2,13 @@
 
 namespace App\Models;
 
+use App\Mail\PortalPasswordReset;
 use App\Services\BillingPeriod;
+use App\Services\LoggedMailer;
+use Illuminate\Auth\Authenticatable;
+use Illuminate\Auth\Passwords\CanResetPassword;
+use Illuminate\Contracts\Auth\Authenticatable as AuthenticatableContract;
+use Illuminate\Contracts\Auth\CanResetPassword as CanResetPasswordContract;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
@@ -10,28 +16,44 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
 
 /**
  * A member COMPANY on the register.
+ *
+ * Also the Eloquent model behind the 'member' auth guard (see
+ * config/auth.php) — a member company logs into its own portal with this
+ * row's email + password, entirely separate from staff's User/'web' guard.
+ * password stays null until a portal invite is set up; see
+ * sendPasswordResetNotification() below for how that email actually goes
+ * out through this app's own logging infrastructure instead of Laravel's
+ * default notification mail.
  */
-class Member extends Model
+class Member extends Model implements AuthenticatableContract, CanResetPasswordContract
 {
+    use Authenticatable, CanResetPassword;
+
     protected $fillable = [
         'company_name', 'business_type_id', 'email', 'phone',
         'contact_person', 'contact_person_phone', 'contact_person_position',
         'address', 'about',
         'member_type_id', 'status', 'monthly_fee', 'join_date',
         'marketing_opt_in', 'unsubscribed_at', 'notes',
-        'logo_path', 'registration_document_path',
+        'logo_path', 'registration_document_path', 'registration_document_updated_at',
     ];
 
-    // paid_through is maintained by a database trigger. Keeping it out of
-    // $fillable stops a stray ->update() from fighting the trigger.
-    protected $guarded = ['paid_through'];
+    // paid_through is maintained by a database trigger; password is only
+    // ever set through setPortalPassword() below, never mass assignment.
+    // Keeping both out of $fillable stops a stray ->update() from fighting
+    // the trigger or a form field from accidentally overwriting a password.
+    protected $guarded = ['paid_through', 'password'];
+
+    protected $hidden = ['password', 'remember_token'];
 
     protected $casts = [
         'join_date' => 'date:Y-m-d',
         'paid_through' => 'date:Y-m-d',
         'unsubscribed_at' => 'datetime',
+        'registration_document_updated_at' => 'datetime',
         'marketing_opt_in' => 'boolean',
         'monthly_fee' => 'decimal:2',
+        'password' => 'hashed',
     ];
 
     // Mirrors the database defaults so a freshly-made, unrefreshed model reads
@@ -166,6 +188,57 @@ class Member extends Model
         }
 
         return $this->company_name;
+    }
+
+    /* -------------------------------------------------------------portal */
+
+    public function hasPortalAccess(): bool
+    {
+        return $this->password !== null;
+    }
+
+    /** The only sanctioned way to change this record's password. */
+    public function setPortalPassword(string $plainPassword): void
+    {
+        $this->forceFill(['password' => $plainPassword])->save();
+    }
+
+    /**
+     * Routes the password-reset email through this app's own LoggedMailer
+     * instead of Laravel's default notification mail, so it shows up in a
+     * member's email history on the admin Members page like every other
+     * message this app sends. Also used for the FIRST password a member
+     * ever sets — staff's "Send portal invite" button is just this same
+     * broker call; there's no separate invite mechanism.
+     *
+     * Not deduped on purpose: each request/invite is a deliberate action by
+     * staff or the member, and a second click should produce a second,
+     * still-valid link rather than silently doing nothing.
+     */
+    public function sendPasswordResetNotification($token): void
+    {
+        $url = url(route('portal.password.reset', [
+            'token' => $token,
+            'email' => $this->email,
+        ], false));
+
+        app(LoggedMailer::class)->send(
+            toEmail: $this->email,
+            mailable: new PortalPasswordReset($this, $url, $this->hasPortalAccess()),
+            kind: 'portal_password_reset',
+            dedupeKey: "portal-reset:{$this->id}:{$token}",
+            subject: $this->hasPortalAccess() ? 'Reset your portal password' : 'Set up your member portal access',
+            memberId: $this->id,
+        );
+    }
+
+    /** Records a (re)upload, so the document-reminder schedule can tell staleness apart from silence. */
+    public function recordRegistrationDocument(string $path): void
+    {
+        $this->forceFill([
+            'registration_document_path' => $path,
+            'registration_document_updated_at' => now(),
+        ])->save();
     }
 
     /* ------------------------------------------------------------ scopes */

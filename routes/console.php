@@ -1,5 +1,6 @@
 <?php
 
+use App\Console\Commands\SendDocumentReminders;
 use App\Console\Commands\SendDuesReminders;
 use Illuminate\Support\Facades\Schedule;
 
@@ -18,5 +19,15 @@ use Illuminate\Support\Facades\Schedule;
 */
 Schedule::command(SendDuesReminders::class)
     ->dailyAt('14:30')
+    ->withoutOverlapping()
+    ->onOneServer();
+
+/*
+| Document reminders run once a month, not daily — the dedupe key is keyed
+| by calendar month specifically so a second trigger (a manual re-run, a
+| retried job) within the same month never sends a second copy.
+*/
+Schedule::command(SendDocumentReminders::class)
+    ->monthlyOn(1, '09:00')
     ->withoutOverlapping()
     ->onOneServer();
