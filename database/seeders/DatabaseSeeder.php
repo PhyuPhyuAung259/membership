@@ -17,6 +17,7 @@ class DatabaseSeeder extends Seeder
     {
         // User::factory(10)->create();
 
+        // The factory's default afterCreating already assigns the Admin role.
         User::factory()->create([
             'name' => 'Test User',
             'email' => 'test@example.com',

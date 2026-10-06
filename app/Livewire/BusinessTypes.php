@@ -13,6 +13,11 @@ class BusinessTypes extends Component
     public ?int $editingId = null;
     public string $editingName = '';
 
+    public function mount(): void
+    {
+        abort_unless(auth()->user()->can('manage-business-types'), 403);
+    }
+
     public function getBusinessTypesProperty()
     {
         return BusinessType::alphabetical()->get();

@@ -71,3 +71,15 @@ it('deletes a member type that is not in use', function () {
 
     expect(MemberType::find($type->id))->toBeNull();
 });
+
+it('blocks a staff member from the member types page', function () {
+    $this->actingAs(User::factory()->staff()->create());
+
+    $this->get(route('member-types'))->assertForbidden();
+});
+
+it('blocks a staff member from the member types component directly', function () {
+    $this->actingAs(User::factory()->staff()->create());
+
+    Livewire::test(MemberTypes::class)->assertStatus(403);
+});

@@ -18,6 +18,11 @@ class Events extends Component
     public $image = null;
     public ?string $existingImagePath = null;
 
+    public function mount(): void
+    {
+        abort_unless(auth()->user()->can('manage-events'), 403);
+    }
+
     public function getEventsProperty()
     {
         return Event::withCount(['broadcasts' => fn ($q) => $q->whereNotNull('sent_at')])

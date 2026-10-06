@@ -12,6 +12,11 @@ class MemberTypes extends Component
     public ?int $editingId = null;
     public array $form = [];
 
+    public function mount(): void
+    {
+        abort_unless(auth()->user()->can('manage-member-types'), 403);
+    }
+
     public function getMemberTypesProperty()
     {
         return MemberType::withCount('members')->ranked()->get();

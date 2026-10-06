@@ -24,6 +24,8 @@ class Announcements extends Component
 
     public function mount(): void
     {
+        abort_unless(auth()->user()->can('send-announcements'), 403);
+
         // Arriving from the Events screen via "Announce" prefills the draft.
         if ($this->eventId && $event = Event::find($this->eventId)) {
             $this->subject = $event->title;
