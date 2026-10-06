@@ -26,7 +26,7 @@ it('uploads a registration document and records when', function () {
 
     Livewire::test(Documents::class)
         ->set('registrationDocument', UploadedFile::fake()->create('registration.pdf', 200, 'application/pdf'))
-        ->call('upload')
+        ->call('saveDocument')
         ->assertHasNoErrors();
 
     $member->refresh();

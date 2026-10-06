@@ -14,7 +14,9 @@ class Documents extends Component
 
     public $registrationDocument = null;
 
-    public function upload(): void
+    // Not named `upload` — that collides with Livewire's built-in
+    // $wire.upload() JS helper, so wire:submit would call the helper instead.
+    public function saveDocument(): void
     {
         $this->validate([
             'registrationDocument' => 'required|mimes:pdf,jpg,jpeg,png|max:5120',

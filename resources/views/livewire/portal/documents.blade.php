@@ -18,7 +18,7 @@
                 <div class="empty mb-4"><strong>Nothing on file yet.</strong>Upload your business registration document below.</div>
             @endif
 
-            <form wire:submit="upload">
+            <form wire:submit="saveDocument">
                 <div class="field">
                     <label for="p-doc">{{ $member->registration_document_path ? 'Replace document' : 'Upload document' }}</label>
                     <input id="p-doc" type="file" wire:model="registrationDocument" accept=".pdf,.jpg,.jpeg,.png">
