@@ -1,4 +1,5 @@
 <div>
+    @include('partials.flash')
     <header class="mb-6 flex flex-wrap items-center justify-between gap-3">
         <h1 class="text-2xl font-semibold tracking-tight">Members</h1>
         <a href="{{ route('members.create') }}" class="btn no-underline">Add member</a>
@@ -307,7 +308,81 @@
                         </dd>
                         <dt class="text-[var(--color-ink-2)]">Announcements</dt>
                         <dd class="font-medium">{{ $detail->unsubscribed_at ? 'Unsubscribed' : ($detail->marketing_opt_in ? 'Subscribed' : 'Opted out') }}</dd>
+                        <dt class="text-[var(--color-ink-2)]">Member portal</dt>
+                        <dd class="font-medium">
+                            @if ($detail->hasPortalAccess())
+                                Access set up
+                            @else
+                                Not set up yet
+                            @endif
+                            @if (! in_array($detail->status, ['cancelled', 'pending'], true))
+                                <button wire:click="createPortalAccess({{ $detail->id }})"
+                                        @if ($detail->hasPortalAccess())
+                                            wire:confirm="Set a new password? The current one will stop working."
+                                        @endif
+                                        class="ml-1 text-[.8125rem] underline decoration-[var(--color-rule)] hover:decoration-[var(--color-ink)]">
+                                    {{ $detail->hasPortalAccess() ? 'Reset password' : 'Create portal login' }}
+                                </button>
+                            @endif
+                        </dd>
                     </dl>
+
+                    @if ($portalCredentials && $portalCredentials['member_id'] === $detail->id)
+                        <div class="notice notice-good !mb-6" x-data="{
+                                copied: false,
+                                everCopied: false,
+                                copy() {
+                                    const text = this.$refs.portalCreds.innerText.trim();
+                                    // navigator.clipboard needs a secure (HTTPS) context — this
+                                    // app runs over plain HTTP locally, so it's unavailable here
+                                    // and this falls back to the old execCommand approach, which
+                                    // works either way.
+                                    if (navigator.clipboard && navigator.clipboard.writeText) {
+                                        navigator.clipboard.writeText(text).catch(() => this.legacyCopy(text));
+                                    } else {
+                                        this.legacyCopy(text);
+                                    }
+                                    this.copied = true;
+                                    this.everCopied = true;
+                                    setTimeout(() => this.copied = false, 2000);
+                                },
+                                legacyCopy(text) {
+                                    const ta = document.createElement('textarea');
+                                    ta.value = text;
+                                    ta.style.position = 'fixed';
+                                    ta.style.opacity = '0';
+                                    document.body.appendChild(ta);
+                                    ta.focus();
+                                    ta.select();
+                                    document.execCommand('copy');
+                                    document.body.removeChild(ta);
+                                },
+                            }"
+                            x-init="
+                                const el = $el;
+                                const handler = (e) => {
+                                    // Checked at the moment the browser actually tries to leave,
+                                    // not when this registered — if the modal's since been closed
+                                    // (element no longer in the page), there's nothing left to
+                                    // warn about, and this unhooks itself. 'everCopied' resolves
+                                    // against this component's live reactive data, same as copy()
+                                    // referencing 'copied' above, so it always reads the current
+                                    // value rather than the value at registration time.
+                                    if (! el.isConnected) { window.removeEventListener('beforeunload', handler); return; }
+                                    if (! everCopied) { e.preventDefault(); e.returnValue = ''; }
+                                };
+                                window.addEventListener('beforeunload', handler);
+                            ">
+                            <div>Portal login ready — copy this and send it to them yourself. The password is shown only this once.</div>
+                            <div x-ref="portalCreds" class="mt-2 whitespace-pre-line rounded border border-[var(--color-rule)] bg-[var(--color-card)] p-2 font-mono text-[.8125rem]">Login: {{ route('portal.login') }}
+Email: {{ $portalCredentials['email'] }}
+Password: {{ $portalCredentials['password'] }}</div>
+                            <button type="button" class="btn btn-quiet btn-sm mt-2" @click="copy()">
+                                <span x-show="!copied">Copy</span>
+                                <span x-show="copied">Copied</span>
+                            </button>
+                        </div>
+                    @endif
 
                     @if ($detail->about)
                         <section class="panel !mb-6">
@@ -335,9 +410,11 @@
                                             <td>{{ $payment->methodLabel() }}</td>
                                             <td class="num">{{ config('membership.currency_symbol') }}{{ number_format($payment->amount, 2) }}</td>
                                             <td>
-                                                <button wire:click="deletePayment({{ $payment->id }})"
-                                                        wire:confirm="Remove this payment? The member's paid-through date will move back."
-                                                        class="text-[.8125rem] text-[var(--color-ink-2)] underline hover:text-[var(--color-ink)]">Remove</button>
+                                                @can('delete-payments')
+                                                    <button wire:click="deletePayment({{ $payment->id }})"
+                                                            wire:confirm="Remove this payment? The member's paid-through date will move back."
+                                                            class="text-[.8125rem] text-[var(--color-ink-2)] underline hover:text-[var(--color-ink)]">Remove</button>
+                                                @endcan
                                             </td>
                                         </tr>
                                     @empty
@@ -345,6 +422,75 @@
                                     @endforelse
                                 </tbody>
                             </table>
+                        </div>
+                    </section>
+
+                    <section class="panel !mb-6">
+                        <header>
+                            <h3 class="text-[.9375rem] font-semibold">Products &amp; brochures</h3>
+                            <span class="hint">{{ $detail->products->count() }} listed</span>
+                        </header>
+                        <div class="overflow-x-auto">
+                            <table class="ledger">
+                                <thead><tr><th>Name</th><th>File</th><th>Description</th><th></th></tr></thead>
+                                <tbody>
+                                    @forelse ($detail->products as $product)
+                                        <tr>
+                                            <td class="font-medium">{{ $product->product_name }}</td>
+                                            <td>
+                                                @if ($product->fileUrl())
+                                                    <a href="{{ $product->fileUrl() }}" target="_blank" rel="noopener">{{ $product->isImage() ? 'Image' : 'Document' }}</a>
+                                                @else
+                                                    —
+                                                @endif
+                                            </td>
+                                            <td class="text-[.8125rem] text-[var(--color-ink-2)]">{{ Str::limit($product->description, 60) }}</td>
+                                            <td class="whitespace-nowrap">
+                                                <button wire:click="startEditProduct({{ $product->id }})"
+                                                        class="text-[.8125rem] underline decoration-[var(--color-rule)] hover:decoration-[var(--color-ink)]">Edit</button>
+                                                <button wire:click="deleteProduct({{ $product->id }})"
+                                                        wire:confirm="Remove this product?"
+                                                        class="text-[.8125rem] text-[var(--color-ink-2)] underline hover:text-[var(--color-ink)]">Remove</button>
+                                            </td>
+                                        </tr>
+                                    @empty
+                                        <tr><td colspan="4"><div class="empty"><strong>Nothing listed yet.</strong></div></td></tr>
+                                    @endforelse
+                                </tbody>
+                            </table>
+                        </div>
+                        <div class="p-[1.1rem] pt-0">
+                            @if (! $productFormOpen)
+                                <button wire:click="startAddProduct" class="btn btn-quiet btn-sm">Add product</button>
+                            @else
+                                <form wire:submit="saveProduct" class="mt-3 border-t border-[var(--color-rule)] pt-3">
+                                    <div class="field">
+                                        <label for="p-name">Product name</label>
+                                        <input id="p-name" wire:model="productForm.product_name">
+                                        @error('productForm.product_name') <div class="error">{{ $message }}</div> @enderror
+                                    </div>
+                                    <div class="field">
+                                        <label for="p-desc">Description</label>
+                                        <textarea id="p-desc" rows="2" wire:model="productForm.description"></textarea>
+                                        @error('productForm.description') <div class="error">{{ $message }}</div> @enderror
+                                    </div>
+                                    <div class="field">
+                                        <label for="p-file">Image or PDF</label>
+                                        @if ($existingProductFilePath && ! $productFile)
+                                            <div class="mb-1.5 text-[.8125rem] text-[var(--color-ink-2)]">
+                                                Current file kept. <button type="button" wire:click="removeProductFile" class="underline">Remove it</button>
+                                            </div>
+                                        @endif
+                                        <input id="p-file" type="file" wire:model="productFile" accept=".jpg,.jpeg,.png,.webp,.gif,.pdf">
+                                        <div wire:loading wire:target="productFile" class="note">Uploading…</div>
+                                        @error('productFile') <div class="error">{{ $message }}</div> @enderror
+                                    </div>
+                                    <div class="flex flex-wrap gap-2">
+                                        <button type="submit" class="btn btn-sm" wire:loading.attr="disabled">Save product</button>
+                                        <button type="button" wire:click="closeProductForm" class="btn btn-quiet btn-sm">Cancel</button>
+                                    </div>
+                                </form>
+                            @endif
                         </div>
                     </section>
 
@@ -385,13 +531,15 @@
                     @if (! in_array($detail->status, ['cancelled', 'pending'], true))
                         <a href="{{ route('directory.show', $detail) }}" target="_blank" rel="noopener" class="btn btn-quiet">View public profile</a>
                     @endif
-                    @if ($detail->status === 'cancelled')
-                        <button wire:click="reinstate({{ $detail->id }})" class="btn btn-quiet">Reinstate</button>
-                    @elseif ($detail->status !== 'pending')
-                        <button wire:click="cancelMembership({{ $detail->id }})"
-                                wire:confirm="Cancel this membership? Payment history is kept and it can be reinstated later."
-                                class="btn btn-danger">Cancel membership</button>
-                    @endif
+                    @can('manage-membership-status')
+                        @if ($detail->status === 'cancelled')
+                            <button wire:click="reinstate({{ $detail->id }})" class="btn btn-quiet">Reinstate</button>
+                        @elseif ($detail->status !== 'pending')
+                            <button wire:click="cancelMembership({{ $detail->id }})"
+                                    wire:confirm="Cancel this membership? Payment history is kept and it can be reinstated later."
+                                    class="btn btn-danger">Cancel membership</button>
+                        @endif
+                    @endcan
                 </div>
             </div>
         </div>

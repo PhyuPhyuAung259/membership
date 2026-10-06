@@ -20,14 +20,15 @@
         </div>
 
         @php
-            $links = [
-                'dashboard' => 'Dashboard',
-                'members' => 'Members',
-                'member-types' => 'Member types',
-                'business-types' => 'Business types',
-                'events' => 'Events',
-                'announcements' => 'Email',
-            ];
+            $user = auth()->user();
+            $links = ['dashboard' => 'Dashboard'];
+            if ($user->can('manage-members')) $links['members'] = 'Members';
+            if ($user->can('manage-business-types')) $links['business-types'] = 'Business types';
+            if ($user->can('manage-events')) $links['events'] = 'Events';
+            if ($user->can('send-announcements')) $links['announcements'] = 'Email';
+            if ($user->can('manage-member-types')) $links['member-types'] = 'Member types';
+            if ($user->can('manage-staff')) $links['users'] = 'Staff accounts';
+            if ($user->can('manage-roles')) $links['roles'] = 'Roles & permissions';
         @endphp
 
         <div class="flex flex-row md:flex-col">
@@ -43,6 +44,11 @@
             @endforeach
         </div>
 
+        <a href="{{ route('directory.index') }}" target="_blank" rel="noopener"
+           class="whitespace-nowrap px-3 py-1.5 text-[.9375rem] text-[#b9c9d9] no-underline hover:text-white md:px-5 md:py-2">
+            Public directory ↗
+        </a>
+
         <div class="ml-auto text-xs text-[#94a8bc] md:ml-0 md:mt-auto md:px-5">
             <span class="hidden md:block">{{ auth()->user()?->name }}</span>
             <form method="POST" action="{{ route('logout') }}">
@@ -53,10 +59,11 @@
     </nav>
 
     <main class="min-w-0 px-4 pb-16 pt-5 md:px-9 md:pt-8">
-        @if (session('status'))
-            <div class="notice notice-good" role="status">{{ session('status') }}</div>
-        @endif
-
+        {{-- Each full-page component includes resources/views/partials/flash.blade.php
+             itself, not here — Livewire's AJAX updates only re-render the
+             component's own template, never this layout, so a flash shown
+             only here would never appear for an action that stays on the
+             same page. --}}
         {{ $slot }}
     </main>
 </div>

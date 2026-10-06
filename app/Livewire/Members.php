@@ -6,17 +6,21 @@ use App\Models\BusinessType;
 use App\Models\Member;
 use App\Models\MemberType;
 use App\Models\Payment;
+use App\Models\Product;
 use App\Rules\WordCountBetween;
 use App\Services\PaymentRecorder;
+use Illuminate\Support\Str;
 use Livewire\Attributes\Url;
 use Livewire\Attributes\Layout;
 use Livewire\Component;
+use Livewire\WithFileUploads;
 use Livewire\WithPagination;
 
 #[Layout('layouts.app')]
 class Members extends Component
 {
     use WithPagination;
+    use WithFileUploads;
 
     #[Url]
     public string $search = '';
@@ -38,6 +42,23 @@ class Members extends Component
 
     // Member form
     public array $form = [];
+
+    // Product form
+    public bool $productFormOpen = false;
+    public ?int $editingProductId = null;
+    public array $productForm = [];
+    public $productFile = null;
+    public ?string $existingProductFilePath = null;
+
+    // Shown once right after (re)creating a portal login, so staff can copy
+    // it — cleared on view()/closeAll() so it never lingers onto a
+    // different member.
+    public ?array $portalCredentials = null;
+
+    public function mount(): void
+    {
+        abort_unless(auth()->user()->can('manage-members'), 403);
+    }
 
     public function updatedSearch(): void
     {
@@ -76,19 +97,21 @@ class Members extends Component
     public function view(int $id): void
     {
         $this->detailId = $id;
+        $this->portalCredentials = null;
     }
 
     public function getDetailProperty(): ?Member
     {
         return $this->detailId
-            ? Member::with(['memberType', 'businessType', 'payments.recordedBy', 'emails' => fn ($q) => $q->latest()->limit(25)])
+            ? Member::with(['memberType', 'businessType', 'products', 'payments.recordedBy', 'emails' => fn ($q) => $q->latest()->limit(25)])
                 ->find($this->detailId)
             : null;
     }
 
     public function closeAll(): void
     {
-        $this->reset(['detailId', 'payingId', 'editingId']);
+        $this->reset(['detailId', 'payingId', 'editingId', 'portalCredentials']);
+        $this->closeProductForm();
     }
 
     /* ----------------------------------------------------------- payment */
@@ -161,11 +184,90 @@ class Members extends Component
 
     public function deletePayment(int $paymentId): void
     {
+        abort_unless(auth()->user()->can('delete-payments'), 403);
+
         // Deleting a payment is allowed, unlike deleting a member: a mistyped
         // payment is a data error, not history. The trigger pulls the
         // member's coverage back automatically.
         Payment::findOrFail($paymentId)->delete();
         session()->flash('status', 'Payment removed. Coverage recalculated.');
+    }
+
+    /* ----------------------------------------------------------- product */
+
+    public function startAddProduct(): void
+    {
+        $this->productFormOpen = true;
+        $this->editingProductId = null;
+        $this->productForm = ['product_name' => '', 'description' => ''];
+        $this->productFile = null;
+        $this->existingProductFilePath = null;
+    }
+
+    public function startEditProduct(int $id): void
+    {
+        $product = Product::findOrFail($id);
+
+        $this->productFormOpen = true;
+        $this->editingProductId = $id;
+        $this->productForm = [
+            'product_name' => $product->product_name,
+            'description' => $product->description ?? '',
+        ];
+        $this->productFile = null;
+        $this->existingProductFilePath = $product->file_path;
+    }
+
+    public function removeProductFile(): void
+    {
+        $this->productFile = null;
+        $this->existingProductFilePath = null;
+    }
+
+    public function closeProductForm(): void
+    {
+        $this->productFormOpen = false;
+        $this->editingProductId = null;
+        $this->productForm = [];
+        $this->productFile = null;
+        $this->existingProductFilePath = null;
+    }
+
+    public function saveProduct(): void
+    {
+        $data = $this->validate([
+            'productForm.product_name' => 'required|string|max:200',
+            'productForm.description' => 'nullable|string|max:1000',
+            'productFile' => 'nullable|file|mimes:jpg,jpeg,png,webp,gif,pdf|max:5120',
+        ])['productForm'];
+
+        if ($this->productFile) {
+            $data['file_path'] = $this->productFile->store('products', 'public');
+            $data['file_kind'] = Product::kindFor($this->productFile->getClientOriginalName());
+            $data['file_original_name'] = $this->productFile->getClientOriginalName();
+        } elseif ($this->editingProductId && $this->existingProductFilePath === null) {
+            $data['file_path'] = null;
+            $data['file_kind'] = null;
+            $data['file_original_name'] = null;
+        }
+
+        if ($this->editingProductId) {
+            Product::findOrFail($this->editingProductId)->update($data);
+        } else {
+            $member = Member::findOrFail($this->detailId);
+            $data['member_id'] = $member->id;
+            $data['sort_order'] = ($member->products()->max('sort_order') ?? 0) + 1;
+            Product::create($data);
+        }
+
+        $this->closeProductForm();
+        session()->flash('status', 'Product saved.');
+    }
+
+    public function deleteProduct(int $id): void
+    {
+        Product::findOrFail($id)->delete();
+        session()->flash('status', 'Product removed.');
     }
 
     /* ------------------------------------------------------ member form */
@@ -253,12 +355,16 @@ class Members extends Component
 
     public function cancelMembership(int $id): void
     {
+        abort_unless(auth()->user()->can('manage-membership-status'), 403);
+
         Member::findOrFail($id)->update(['status' => 'cancelled']);
         session()->flash('status', 'Membership cancelled. Payment history kept.');
     }
 
     public function reinstate(int $id): void
     {
+        abort_unless(auth()->user()->can('manage-membership-status'), 403);
+
         $member = Member::findOrFail($id);
         $member->update([
             'status' => ($member->paid_through && $member->dayOffset() <= 0) ? 'active' : 'lapsed',
@@ -271,6 +377,27 @@ class Members extends Component
     {
         Member::findOrFail($id)->update(['status' => 'active']);
         session()->flash('status', 'Member activated.');
+    }
+
+    /**
+     * Sets the member's portal password directly and hands the plaintext
+     * back to staff to copy and send themselves — no email involved. This
+     * also covers resetting an existing login: setPortalPassword() just
+     * overwrites whatever was there, so "create" and "reset" are the same
+     * action.
+     */
+    public function createPortalAccess(int $id): void
+    {
+        $member = Member::findOrFail($id);
+        $password = Str::password(16);
+
+        $member->setPortalPassword($password);
+
+        $this->portalCredentials = [
+            'member_id' => $member->id,
+            'email' => $member->email,
+            'password' => $password,
+        ];
     }
 
     public function render()

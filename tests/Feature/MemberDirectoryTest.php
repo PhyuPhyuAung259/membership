@@ -55,3 +55,31 @@ it('404s for a cancelled membership', function () {
 
     $this->get(route('directory.show', $member))->assertNotFound();
 });
+
+it('lists active members on the public directory index', function () {
+    $member = directoryMember(['company_name' => 'Bespoke Textiles']);
+
+    $this->get(route('directory.index'))
+        ->assertOk()
+        ->assertSee('Bespoke Textiles');
+});
+
+it('excludes cancelled and pending members from the directory index', function () {
+    directoryMember(['company_name' => 'Cancelled Co', 'status' => 'cancelled']);
+    directoryMember(['company_name' => 'Pending Co', 'status' => 'pending']);
+
+    $this->get(route('directory.index'))
+        ->assertOk()
+        ->assertDontSee('Cancelled Co')
+        ->assertDontSee('Pending Co');
+});
+
+it('searches the directory index by company name', function () {
+    directoryMember(['company_name' => 'Bespoke Textiles']);
+    directoryMember(['company_name' => 'Golden Gate Traders']);
+
+    $this->get(route('directory.index', ['q' => 'Golden']))
+        ->assertOk()
+        ->assertSee('Golden Gate Traders')
+        ->assertDontSee('Bespoke Textiles');
+});
